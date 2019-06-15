@@ -1,0 +1,43 @@
+import pandas as pd
+import numpy as np
+from tensorflow import keras
+
+def main():
+    print("Use Pandas csv")
+    ds = pd.read_csv('data.csv')
+
+    idxNameArr = ds.columns.values
+
+    print("Nama label tabel adalah:")
+    print(list(idxNameArr))
+    # nilai y adalah pada posisi kolom ke dua akhir
+    # nilai X adalah pada posisi kolom pertama sampai pada kolom 'sebelum kedua terakhir'
+    """
+    label kolom adalah sebagai berikut:
+        ['step', 'type', 'amount', 'nameOrig', 'oldbalanceOrg', 'newbalanceOrig', 'nameDest', 'oldbalanceDest', 'newbalanceDest', 'isFraud', 'isFlaggedFraud']
+    maka matriks X adalah ['step', 'type', 'amount', 'nameOrig', 'oldbalanceOrg', 'newbalanceOrig', 'nameDest', 'oldbalanceDest', 'newbalanceDest']
+    matriks y adalah [isFraud]
+    """
+    X, y = ds.iloc[:, :-2], ds.iloc[:, -2]
+
+    print(X.shape)
+    print(y.shape)
+
+    #print(ds.describe())
+    print(ds.head())
+    del ds['type']
+    del ds['nameDest']
+    del ds['nameOrig']
+
+    print("Setelah dihapus")
+    print(ds.head())
+
+    print("Nilai y:")
+    print(y)
+
+    print("Nilai X:")
+    print(X)
+
+    y = keras.utils.to_categorical(y, num_classes=2)
+if __name__ == "__main__":
+    main()
