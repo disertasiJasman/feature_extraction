@@ -1,0 +1,111 @@
+from keras import applications
+from keras.layers import Input
+from util.UtilPath import getDirectoryPath
+from util.ImageGenerator import generateDataset
+from util.ImageGenerator import generateDataSetValidTest
+from sklearn.preprocessing import LabelEncoder
+from util.ImageGenerator import getLabels
+import keras
+from util.graph_history import getInfoGraph
+from keras.layers import Dense
+# Creating new model. Please note that this is NOT a Sequential() model.
+from keras.models import Model
+from keras.layers import Conv2D, MaxPooling2D, Flatten, Dropout
+from util.plot_fig import plot_history
+
+def main():
+    # This will load the whole VGG16 network, including the top Dense layers.
+    # Note: by specifying the shape of top layers, input tensor shape is forced
+    # to be (224, 224, 3), therefore you can use it only on 224x224 images.
+    #vgg_model = applications.VGG16(weights='imagenet', include_top=True)
+
+    # If you are only interested in convolution filters. Note that by not
+    # specifying the shape of top layers, the input tensor shape is (None, None, 3),
+    # so you can use them for any size of images.
+    #vgg_model = applications.VGG16(weights='imagenet', include_top=False)
+
+    dir_train = getDirectoryPath()
+    dir_valid = getDirectoryPath()
+    dir_test = getDirectoryPath()
+    input_shape = (160, 160, 3)
+
+
+    # If you want to specify input tensor
+    input_tensor = Input(shape=(160, 160, 3))
+
+    (data_train, train_labels, Category) = generateDataset(dir=dir_train, input_shape=input_shape, batch_size=100,
+                                                           counter=6)  # 600
+    print(data_train.shape)
+    # get direktory validasi
+    (data_valid, valid_labels, Category_valid) = generateDataSetValidTest(test_dir=dir_valid, input_shape=input_shape,
+                                                                          batch_size=25, counter=10)  # 250
+    print(data_valid.shape)
+    # get direktori test
+    (data_test, test_labels, Category_test) = generateDataSetValidTest(test_dir=dir_test, input_shape=input_shape,
+                                                                       batch_size=5, counter=10)  # 150
+
+    print(data_test.shape)
+
+    labels_names = getLabels(Category)
+    le = LabelEncoder()
+    encoded_labels = le.fit_transform(labels_names)
+
+    vgg_model = applications.VGG16(weights='imagenet',
+                                   include_top=False,
+                                   input_tensor=input_tensor)
+
+    # To see the models' architecture and layer names, run the following
+    vgg_model.summary()
+
+    # Creating dictionary that maps layer names to the layers
+    layer_dict = dict([(layer.name, layer) for layer in vgg_model.layers])
+    # Getting output tensor of the last VGG layer that we want to include
+    hidden_layer = layer_dict['block5_pool'].output
+
+    #outputs = Dense(output_dim=20, activation="softmax")(hidden_layer)
+
+    # Stacking a new simple convolutional network on top of it
+    #x = Conv2D(filters=512, kernel_size=(3, 3), activation='relu')(hidden_layer)
+    #x = MaxPooling2D(pool_size=(2, 2))(x)
+    x = Flatten()(hidden_layer)
+    x = Dense(512, activation='relu')(x)
+    x = Dropout(0.5)(x)
+    x = Dense(20, activation='softmax')(x)
+
+
+    custom_model = Model(input=vgg_model.input, output=x)
+
+    custom_model.summary()
+
+    custom_model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
+    callbacks_list = [
+        keras.callbacks.EarlyStopping(
+            monitor='acc',
+            patience=6,
+        ),
+        keras.callbacks.ModelCheckpoint(
+            filepath='ghim_vgg.h5',
+            monitor='val_loss',
+            save_best_only=True,
+        )
+    ]
+
+    callbacks = [
+        keras.callbacks.TensorBoard(
+            log_dir='my_log',
+            histogram_freq=1,
+            embeddings_freq=1,
+        )
+    ]
+
+    history = custom_model.fit(data_train, train_labels, epochs=2, batch_size=100, validation_data=(data_valid, valid_labels),
+                        callbacks=[keras.callbacks.TensorBoard(log_dir="my_log", histogram_freq=1, write_graph=True)])
+
+    test_loss, test_acc = custom_model.evaluate(data_test, test_labels)
+    custom_model.save('ghim_vgg.h5')
+    print(test_acc)
+    #getInfoGraph(history)
+    plot_history(history)
+
+if __name__ == "__main__":
+    main()
