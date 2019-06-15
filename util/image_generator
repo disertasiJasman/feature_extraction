@@ -1,0 +1,176 @@
+
+from keras.preprocessing.image import ImageDataGenerator, load_img, array_to_img, img_to_array
+import numpy as np
+
+
+def getLabels(category):
+    return [item[0] for item in category.items()]
+
+def getTarget(encoded):
+    indexes = [index for index in range(len(encoded)) if encoded[index] == 1]
+    return indexes[0]
+
+def getLabelsTarget(encoded_label):
+    #for index in range(0, len(encoded_label)):
+    #    ld_label.append(getTarget(encoded_label[index]))
+    return [getTarget(encoded_label[index]) for index in range(0, len(encoded_label))]
+
+def generateData(train_dir='./', input_shape=(150, 150), batch_size=2, class_mode='categorical'):
+    train_datagen = ImageDataGenerator(
+        rescale=1./255,
+        rotation_range=40,
+        width_shift_range=0.2,
+        height_shift_range=0.2,
+        shear_range=0.2,
+        zoom_range=0.2,
+        horizontal_flip=True,
+        fill_mode='nearest')
+
+    train_generator = train_datagen.flow_from_directory(
+        train_dir,
+        target_size=input_shape,
+        batch_size=batch_size,      # menyatakan jumlah batch yang diberikan untuk digenerate
+        class_mode=class_mode)
+
+    return train_generator
+
+# digunakan untuk mengenerate dataset valid dan test image
+def generateDataValidTest(train_dir='./', input_shape=(150, 150), batch_size=2, class_mode='categorical'):
+    tv_datagen = ImageDataGenerator(rescale=1./255)
+
+    tv_generator = tv_datagen.flow_from_directory(
+        train_dir,
+        target_size=input_shape,
+        batch_size=batch_size,      # menyatakan jumlah batch yang diberikan untuk digenerate
+        class_mode=class_mode)
+
+    return tv_generator
+
+
+# method untuk memciptakan citra dari citra-citra yang ada pada direktori tertentu
+# dan menyimpan citra yang tebentuk pada direktori resized, secara default dengan format .jpg
+def generateImage(filename, shape=(150,150), noOfGen=10, save_to_dir='/resized', format='jpg', save_prefix='N', batch_size=10):
+
+    datagen = ImageDataGenerator(
+        rotation_range=40,
+        width_shift_range=0.2,
+        height_shift_range=0.2,
+        shear_range=0.2,
+        zoom_range=0.2,
+        horizontal_flip=True,
+        fill_mode='nearest')
+
+    img = load_img(filename, target_size=shape)
+    img_tensor = img_to_array(img)  # menghasilkan dimensi (150, 150, 3)
+    #print("Shape image= ", img_tensor.shape)
+    # img_tensor = np.expand_dims(img_tensor, axis=0)     # (1, 150, 150, 3)
+    img_tensor = img_tensor.reshape((1,) + img_tensor.shape)
+    #print("Shape setelah expand= ", img_tensor.shape)
+    # Range nilai citra antara [0..1] untuk float [0 .. 255]
+    i = 0
+    for batch in datagen.flow(img_tensor, save_to_dir=save_to_dir, save_prefix=save_prefix, save_format=format, batch_size=batch_size):
+        i += 1
+        if i % noOfGen == 0:
+            break
+    print("Finish %d images generated " %noOfGen)
+
+# mengembalikan index atau posisi dari elemen yang memuat findVal
+# findVal adalah nilai yang akan dicari
+# data_array adalah suatu array yang mengandung elemen-elemen
+# contoh ['saya', 'makan', 'pisang'], jika findVal adalah pisang maka hasil method ini adalah [2]
+def getIndexArray(data_array, findVal):
+    indexes = [index for index in range(len(data_array)) if data_array[index] == findVal]
+    return indexes[0]
+
+# Contoh listCategory {'africans': 0, 'beaches': 1, 'buildings': 2, 'buses': 3, 'dinosaurus': 4, 'elephants': 5, 'flowers': 6, 'foods': 7, 'horses': 8, 'mountains': 9}
+# Contoh valueToFind = 1, maka yang dikembalikan adalah beaches
+def getKeysByValue(listCatgeory, valueToFind):
+    listOfKeys = list()
+    listOfItems = listCatgeory.items()
+    for item in listOfItems:
+        if item[1] == valueToFind:
+            return item[0]
+            break
+
+# mengembalikan nama category atau lebel citra berdasarkan nama direktory yang bersesuaian dengan citra
+# listCategory adalah list yang mengandung pasangan (key, value) key adalah label direktori, value adalah 0 atau 1, atau 2, dst
+# Contoh listCategory {'africans': 0, 'beaches': 1, 'buildings': 2, 'buses': 3, 'dinosaurus': 4, 'elephants': 5, 'flowers': 6, 'foods': 7, 'horses': 8, 'mountains': 9}
+# Contoh dt_label [0 1 0 0 0 0 0 0 0 0]
+# adapun hasil yang dikembalikan dari method ini adalah mengembalikan beaches
+def getCategory(listCatgeory, dt_label):
+    return getKeysByValue(listCatgeory, getIndexArray(dt_label, 1))
+
+# Membangkitkan dataset, label dan category yang ada berdasarkan direktori citra yang diberikan
+# dataset adalah conversi setiap citra ke binari 3 dimensional dengan ukuran citranya adalah sebesar input_shape
+# class_mode untuk citra yang lebih dari dua karegori diset dengan nilai class_mode = 'categorical' untuk yang bernilai 2 dapat dengan binary
+# batch_size digunakan untuk mengambil jumlah citra yang disimpan pada memory secara temporary
+# counter digunakan untuk mengambil atau looping pengambilan citra
+# perkalian batch_size * counter tidak boleh melebihi jumlah citra yang ada pada direktori citra yang akan diambil
+
+def generateDataset(dir = './', input_shape=(150,150,3),batch_size=10, counter=1, class_mode='categorical'):
+
+    #image_width, image_height, channels = (130, 130, 3)
+    # Jumlah dataset yang dibangkitkan dari direktori citra harus lebih kecil atau sama dengan jumlah citra yang ada
+    # pada direktori citra
+
+    train_generator = generateData(train_dir=dir, input_shape=(input_shape[0], input_shape[1]), batch_size=batch_size,
+                                   class_mode=class_mode)
+    class_dictionary = train_generator.class_indices
+
+    #print(class_dictionary)
+
+    # countCat = getAllCategoryDir(dir)
+    # print("Banyaknya kategory: ", len(countCat))
+    # print(countCat)
+    dataset = np.ndarray(shape=(counter * batch_size, input_shape[0], input_shape[1], input_shape[2]),
+                         dtype=np.float32)
+    labels = np.ndarray(shape=(counter * batch_size, len(class_dictionary)), dtype=np.int8)
+
+    i = 0
+    start = i
+    end = batch_size
+    for data_batch, labels_batch in train_generator:
+        #print(labels_batch)
+        # print('Data batch shape: ', data_batch.shape)
+        # print('Labels batch sahpe: ', labels_batch.shape)
+        # print("Awal = %d akhir = %d" % (start, end))
+        # untuk menset nilai elemen dataset mulai dari elemen start sampai elemen end
+        # dengan nilai data_batch yang dibandingkan
+        dataset[start:end] = data_batch
+        labels[start:end] = labels_batch
+        start = end
+        i += 1
+        end = (i + 1) * batch_size  # karena dimulai dari 0
+
+        if i % counter == 0:
+            break
+    return (dataset, labels, class_dictionary)
+
+def generateDataSetValidTest(test_dir = './', input_shape=(150,150,3), batch_size=10, counter=1, class_mode='categorical'):
+
+    tv_generator = generateDataValidTest(train_dir=test_dir, input_shape=(input_shape[0], input_shape[1]), batch_size = batch_size, class_mode=class_mode)
+
+    class_dictionary = tv_generator.class_indices
+    dataset = np.ndarray(shape=(counter * batch_size, input_shape[0], input_shape[1], input_shape[2]),
+                         dtype=np.float32)
+    labels = np.ndarray(shape=(counter * batch_size, len(class_dictionary)), dtype=np.int8)
+
+    i = 0
+    start = i
+    end = batch_size
+    for data_batch, labels_batch in tv_generator:
+        # print(labels_batch)
+        # print('Data batch shape: ', data_batch.shape)
+        # print('Labels batch sahpe: ', labels_batch.shape)
+        # print("Awal = %d akhir = %d" % (start, end))
+        # untuk menset nilai elemen dataset mulai dari elemen start sampai elemen end
+        # dengan nilai data_batch yang dibandingkan
+        dataset[start:end] = data_batch
+        labels[start:end] = labels_batch
+        start = end
+        i += 1
+        end = (i + 1) * batch_size  # karena dimulai dari 0
+
+        if i % counter == 0:
+            break
+    return (dataset, labels, class_dictionary)
